@@ -20,6 +20,8 @@ public:
 
     void SetCallback(std::function<void(s16*, std::size_t)> cb) override;
 
+    bool IsActive() const;
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl;
