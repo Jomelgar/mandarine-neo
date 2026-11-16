@@ -12,6 +12,8 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -38,6 +40,8 @@ import io.github.mandarine3ds.mandarine.features.settings.model.SettingsViewMode
 import io.github.mandarine3ds.mandarine.features.settings.model.view.InputBindingSetting
 import io.github.mandarine3ds.mandarine.fragments.EmulationFragment
 import io.github.mandarine3ds.mandarine.fragments.MessageDialogFragment
+import io.github.mandarine3ds.mandarine.utils.AudioFocusHelper
+import io.github.mandarine3ds.mandarine.utils.AudioRouteMonitor
 import io.github.mandarine3ds.mandarine.utils.ControllerMappingHelper
 import io.github.mandarine3ds.mandarine.utils.FileBrowserHelper
 import io.github.mandarine3ds.mandarine.utils.ForegroundService
@@ -52,6 +56,8 @@ import androidx.core.os.BundleCompat
 import io.github.mandarine3ds.mandarine.utils.PlayTimeTracker
 import io.github.mandarine3ds.mandarine.model.Game
 import io.github.mandarine3ds.mandarine.utils.RefreshRateUtil
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class EmulationActivity : AppCompatActivity() {
     private val preferences: SharedPreferences
@@ -64,6 +70,13 @@ class EmulationActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEmulationBinding
     private lateinit var screenAdjustmentUtil: ScreenAdjustmentUtil
     private lateinit var hotkeyUtility: HotkeyUtility
+    private lateinit var audioRouteMonitor: AudioRouteMonitor
+    private lateinit var audioFocusHelper: AudioFocusHelper
+
+    private val audioRestartExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val audioHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var audioRestartPending = false
 
     private var isEmulationRunning: Boolean = false
     private var emulationStartTime: Long = 0
@@ -88,6 +101,12 @@ class EmulationActivity : AppCompatActivity() {
         binding = ActivityEmulationBinding.inflate(layoutInflater)
         screenAdjustmentUtil = ScreenAdjustmentUtil(this, windowManager, settingsViewModel.settings)
         hotkeyUtility = HotkeyUtility(screenAdjustmentUtil, this)
+        audioRouteMonitor = AudioRouteMonitor(this) { restartAudioInBackground() }
+        audioFocusHelper = AudioFocusHelper(
+            this,
+            onFocusGained = { restartAudioInBackground() },
+            onFocusLost = {}
+        )
         setContentView(binding.root)
 
         val navHostFragment =
@@ -133,6 +152,17 @@ class EmulationActivity : AppCompatActivity() {
         super.onResume()
         enableFullscreenImmersive()
         applyOrientationSettings() // Check for orientation settings changes on runtime
+        audioRouteMonitor.start()
+        audioFocusHelper.requestFocus()
+        if (NativeLibrary.isRunning()) {
+            restartAudioInBackground()
+        }
+    }
+
+    override fun onPause() {
+        audioRouteMonitor.stop()
+        audioFocusHelper.abandonFocus()
+        super.onPause()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -157,6 +187,10 @@ class EmulationActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         NativeLibrary.enableAdrenoTurboMode(false)
+        audioRouteMonitor.stop()
+        audioFocusHelper.abandonFocus()
+        audioHandler.removeCallbacksAndMessages(null)
+        audioRestartExecutor.shutdownNow()
         EmulationLifecycleUtil.clear()
         val sessionTime = System.currentTimeMillis() - emulationStartTime
 
@@ -215,11 +249,29 @@ class EmulationActivity : AppCompatActivity() {
 
     fun onEmulationStarted() {
         emulationViewModel.setEmulationStarted(true)
+        audioFocusHelper.requestFocus()
+        // Give Android a moment to settle the initial audio route before reopening the stream.
+        audioHandler.postDelayed({ restartAudioInBackground() }, AUDIO_START_RESTART_DELAY_MS)
         Toast.makeText(
             applicationContext,
             getString(R.string.emulation_menu_help),
             Toast.LENGTH_LONG
         ).show()
+    }
+
+    private fun restartAudioInBackground() {
+        if (!NativeLibrary.isRunning() || audioRestartPending) {
+            return
+        }
+
+        audioRestartPending = true
+        audioRestartExecutor.execute {
+            try {
+                NativeLibrary.restartAudio()
+            } finally {
+                audioRestartPending = false
+            }
+        }
     }
 
     fun displayMultiplayerDialog() {
@@ -545,6 +597,7 @@ class EmulationActivity : AppCompatActivity() {
         }
 
     companion object {
+        private const val AUDIO_START_RESTART_DELAY_MS = 500L
         private var instance: EmulationActivity? = null
 
         fun stopForegroundService(activity: Activity) {
