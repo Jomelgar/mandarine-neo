@@ -2,8 +2,8 @@ name: mandarine-build
 
 on:
   push:
-    branches: [ "*" ]
-    tags: [ "*" ]
+    branches: [ "**" ]
+    tags: [ "**" ]
   pull_request:
     branches: [ neo ]
   workflow_dispatch:
