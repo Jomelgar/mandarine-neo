@@ -358,6 +358,9 @@ public:
     /// Applies any changes to settings to this core instance.
     void ApplySettings();
 
+    /// Recreates the audio sink, retrying if the first attempt fails to become active.
+    void RestartAudioSink();
+
     /// Downcount will be limited to a smaller time slice.
     void ReduceDowncountSlice(bool enabled, u32 num_cores);
 

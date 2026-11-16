@@ -24,6 +24,11 @@ public:
     /// (Units: samples/sec)
     virtual unsigned int GetNativeSampleRate() const = 0;
 
+    /// Returns whether the sink is currently able to output audio.
+    virtual bool IsActive() const {
+        return true;
+    }
+
     /**
      * Set callback for samples
      * @param samples Samples in interleaved stereo PCM16 format.

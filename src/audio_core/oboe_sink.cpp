@@ -91,7 +91,11 @@ public:
 
     bool IsActive() const {
         std::lock_guard lock{m_mutex};
-        return m_stream && m_stream->getState() == oboe::StreamState::Started;
+        if (!m_stream) {
+            return false;
+        }
+        const auto state = m_stream->getState();
+        return state == oboe::StreamState::Started || state == oboe::StreamState::Starting;
     }
 
     void SetDeviceId(int32_t device_id) {

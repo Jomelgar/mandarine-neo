@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <span>
 #include <boost/serialization/access.hpp>
 #include "audio_core/audio_types.h"
@@ -100,7 +101,7 @@ public:
     virtual void UnloadComponent() = 0;
 
     /// Select the sink to use based on sink type.
-    void SetSink(SinkType sink_type, std::string_view audio_device);
+    bool SetSink(SinkType sink_type, std::string_view audio_device);
     /// Get the current sink
     Sink& GetSink();
     /// Enable/Disable audio stretching.
@@ -122,6 +123,7 @@ private:
     Common::RingBuffer<s16, 0x2000, 2> fifo;
     std::array<s16, 2> last_frame{};
     TimeStretcher time_stretcher;
+    std::mutex sink_mutex;
     std::unique_ptr<Sink> sink;
 
     template <class Archive>

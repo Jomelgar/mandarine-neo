@@ -18,6 +18,8 @@ public:
 
     unsigned int GetNativeSampleRate() const override;
 
+    bool IsActive() const override;
+
     void SetCallback(std::function<void(s16*, std::size_t)> cb) override;
 
 private:

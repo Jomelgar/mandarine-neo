@@ -600,6 +600,11 @@ void Java_io_github_mandarine3ds_mandarine_NativeLibrary_reloadSettings(
     system.ApplySettings();
 }
 
+void Java_io_github_mandarine3ds_mandarine_NativeLibrary_restartAudio(
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jobject obj) {
+    Core::System::GetInstance().RestartAudioSink();
+}
+
 jdoubleArray Java_io_github_mandarine3ds_mandarine_NativeLibrary_getPerfStats(
     JNIEnv* env, [[maybe_unused]] jobject obj) {
     auto& core = Core::System::GetInstance();

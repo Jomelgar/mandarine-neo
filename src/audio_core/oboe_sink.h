@@ -20,7 +20,7 @@ public:
 
     void SetCallback(std::function<void(s16*, std::size_t)> cb) override;
 
-    bool IsActive() const;
+    bool IsActive() const override;
 
 private:
     class Impl;

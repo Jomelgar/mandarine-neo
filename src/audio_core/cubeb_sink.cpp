@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <atomic>
 #include <cstdarg>
 #include <cstring>
 #include <mutex>
@@ -16,6 +17,7 @@ namespace AudioCore {
 struct CubebSink::Impl {
     cubeb* ctx = nullptr;
     cubeb_stream* stream = nullptr;
+    std::atomic<bool> started{false};
 
     std::function<void(s16*, std::size_t)> cb;
 
@@ -92,6 +94,8 @@ CubebSink::CubebSink(std::string_view target_device_name) : impl(std::make_uniqu
         LOG_CRITICAL(Audio_Sink, "Error starting cubeb stream");
         return;
     }
+
+    impl->started = true;
 }
 
 CubebSink::~CubebSink() {
@@ -109,6 +113,10 @@ CubebSink::~CubebSink() {
 
 unsigned int CubebSink::GetNativeSampleRate() const {
     return native_sample_rate;
+}
+
+bool CubebSink::IsActive() const {
+    return impl && impl->started.load();
 }
 
 void CubebSink::SetCallback(std::function<void(s16*, std::size_t)> cb) {
@@ -131,17 +139,30 @@ long CubebSink::Impl::DataCallback(cubeb_stream* stream, void* user_data, const 
 }
 
 void CubebSink::Impl::StateCallback(cubeb_stream* stream, void* user_data, cubeb_state state) {
+    auto* impl = static_cast<Impl*>(user_data);
     switch (state) {
     case CUBEB_STATE_STARTED:
+        if (impl) {
+            impl->started = true;
+        }
         LOG_INFO(Audio_Sink, "Cubeb Audio Stream Started");
         break;
     case CUBEB_STATE_STOPPED:
+        if (impl) {
+            impl->started = false;
+        }
         LOG_INFO(Audio_Sink, "Cubeb Audio Stream Stopped");
         break;
     case CUBEB_STATE_DRAINED:
+        if (impl) {
+            impl->started = false;
+        }
         LOG_INFO(Audio_Sink, "Cubeb Audio Stream Drained");
         break;
     case CUBEB_STATE_ERROR:
+        if (impl) {
+            impl->started = false;
+        }
         LOG_CRITICAL(Audio_Sink, "Cubeb Audio Stream Errored");
         break;
     }

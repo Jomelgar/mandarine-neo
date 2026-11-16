@@ -2,7 +2,9 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <chrono>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 #include <boost/serialization/array.hpp>
 #include "audio_core/dsp_interface.h"
@@ -463,8 +465,19 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
 
     memory->SetDSP(*dsp_core);
 
-    dsp_core->SetSink(Settings::values.output_type.GetValue(),
-                      Settings::values.output_device.GetValue());
+    bool sink_ready = dsp_core->SetSink(Settings::values.output_type.GetValue(),
+                                        Settings::values.output_device.GetValue());
+#ifdef ANDROID
+    // Android audio routes can take a moment to settle after the activity is resumed.
+    for (int attempt = 0; !sink_ready && attempt < 2; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{150});
+        sink_ready = dsp_core->SetSink(Settings::values.output_type.GetValue(),
+                                       Settings::values.output_device.GetValue());
+    }
+#endif
+    if (!sink_ready) {
+        LOG_ERROR(Audio_Sink, "Failed to initialize the audio sink");
+    }
     dsp_core->EnableStretching(Settings::values.enable_audio_stretching.GetValue());
 
 #ifdef ENABLE_SCRIPTING
@@ -684,8 +697,10 @@ void System::ApplySettings() {
 
     if (IsPoweredOn()) {
         CoreTiming().UpdateClockSpeed(Settings::values.cpu_clock_percentage.GetValue());
-        dsp_core->SetSink(Settings::values.output_type.GetValue(),
-                          Settings::values.output_device.GetValue());
+        if (!dsp_core->SetSink(Settings::values.output_type.GetValue(),
+                               Settings::values.output_device.GetValue())) {
+            LOG_ERROR(Audio_Sink, "Failed to update the audio sink");
+        }
         dsp_core->EnableStretching(Settings::values.enable_audio_stretching.GetValue());
 
         auto hid = Service::HID::GetModule(*this);
@@ -722,6 +737,29 @@ void System::ApplySettings() {
         plg_ldr->SetEnabled(Settings::values.plugin_loader_enabled.GetValue());
         plg_ldr->SetAllowGameChangeState(Settings::values.allow_plugin_loader.GetValue());
     }
+}
+
+void System::RestartAudioSink() {
+    if (!IsPoweredOn() || !dsp_core) {
+        return;
+    }
+
+    constexpr int max_attempts = 3;
+    constexpr auto retry_delay = std::chrono::milliseconds{150};
+
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
+        if (dsp_core->SetSink(Settings::values.output_type.GetValue(),
+                              Settings::values.output_device.GetValue())) {
+            dsp_core->EnableStretching(Settings::values.enable_audio_stretching.GetValue());
+            return;
+        }
+
+        if (attempt + 1 < max_attempts) {
+            std::this_thread::sleep_for(retry_delay);
+        }
+    }
+
+    LOG_ERROR(Audio_Sink, "Failed to restart the audio sink after {} attempts", max_attempts);
 }
 
 void System::RegisterAppLoaderEarly(std::unique_ptr<Loader::AppLoader>& loader) {

@@ -100,6 +100,11 @@ object NativeLibrary {
 
     external fun reloadSettings()
 
+    /**
+     * Recreates the audio output stream, retrying if the device is not ready yet.
+     */
+    external fun restartAudio()
+
     external fun getTitleId(filename: String): Long
 
     external fun getIsSystemTitle(path: String): Boolean

@@ -7,6 +7,7 @@
 #include "audio_core/sink.h"
 #include "audio_core/sink_details.h"
 #include "common/assert.h"
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/dumping/backend.h"
@@ -17,14 +18,25 @@ DspInterface::DspInterface(Core::System& system_) : system(system_) {}
 
 DspInterface::~DspInterface() = default;
 
-void DspInterface::SetSink(AudioCore::SinkType sink_type, std::string_view audio_device) {
+bool DspInterface::SetSink(AudioCore::SinkType sink_type, std::string_view audio_device) {
+    std::scoped_lock lock{sink_mutex};
+
     // Dispose of the current sink first to avoid contention.
     sink.reset();
 
-    sink = AudioCore::GetSinkDetails(sink_type).create_sink(audio_device);
+    const auto& sink_details = AudioCore::GetSinkDetails(sink_type);
+    sink = sink_details.create_sink(audio_device);
     sink->SetCallback(
         [this](s16* buffer, std::size_t num_frames) { OutputCallback(buffer, num_frames); });
     time_stretcher.SetOutputSampleRate(sink->GetNativeSampleRate());
+
+    if (!sink->IsActive()) {
+        LOG_ERROR(Audio_Sink, "Audio sink '{}' failed to start", sink_details.name);
+        sink.reset();
+        return false;
+    }
+
+    return true;
 }
 
 Sink& DspInterface::GetSink() {
@@ -37,6 +49,7 @@ void DspInterface::EnableStretching(bool enable) {
 }
 
 void DspInterface::OutputFrame(StereoFrame16 frame) {
+    std::scoped_lock lock{sink_mutex};
     if (!sink) {
         return;
     }
@@ -50,6 +63,7 @@ void DspInterface::OutputFrame(StereoFrame16 frame) {
 }
 
 void DspInterface::OutputSample(std::array<s16, 2> sample) {
+    std::scoped_lock lock{sink_mutex};
     if (!sink) {
         return;
     }
