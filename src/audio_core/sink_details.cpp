@@ -25,7 +25,16 @@
 namespace AudioCore {
 namespace {
 // sink_details is ordered in terms of desirability, with the best choice at the top.
+// On Android, Oboe is preferred because it is the platform-native backend and handles
+// audio route changes and sample rate conversion more reliably than the generic sinks.
 constexpr std::array sink_details = {
+#ifdef ANDROID
+    SinkDetails{SinkType::Oboe, "Oboe",
+                [](std::string_view device_id) -> std::unique_ptr<Sink> {
+                    return std::make_unique<OboeSink>(device_id);
+                },
+                &ListOboeSinkDevices},
+#endif
 #ifdef HAVE_CUBEB
     SinkDetails{SinkType::Cubeb, "Cubeb",
                 [](std::string_view device_id) -> std::unique_ptr<Sink> {
@@ -39,13 +48,6 @@ constexpr std::array sink_details = {
                     return std::make_unique<OpenALSink>(std::string(device_id));
                 },
                 &ListOpenALSinkDevices},
-#endif
-#ifdef ANDROID
-    SinkDetails{SinkType::Oboe, "Oboe",
-                [](std::string_view device_id) -> std::unique_ptr<Sink> {
-                    return std::make_unique<OboeSink>(device_id);
-                },
-                &ListOboeSinkDevices},
 #endif
 #ifdef HAVE_SDL2
     SinkDetails{SinkType::SDL2, "SDL2",
