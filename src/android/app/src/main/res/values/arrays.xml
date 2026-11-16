@@ -169,13 +169,28 @@
         <item>3</item>
     </integer-array>
 
+    <string-array name="audioOutputTypeNames">
+        <item>@string/audio_output_auto</item>
+        <item>@string/audio_output_oboe</item>
+        <item>@string/audio_output_cubeb</item>
+        <item>@string/audio_output_openal</item>
+        <item>@string/audio_output_none</item>
+    </string-array>
+
+    <integer-array name="audioOutputTypeValues">
+        <item>0</item>
+        <item>5</item>
+        <item>2</item>
+        <item>3</item>
+        <item>1</item>
+    </integer-array>
+
     <string-array name="audioInputTypeNames">
         <item>@string/auto</item>
         <item>@string/none</item>
         <item>@string/static_noise</item>
         <item>@string/real_cubeb</item>
         <item>@string/real_openal</item>
-        <item>@string/real_oboe</item>
     </string-array>
 
     <integer-array name="audioInputTypeValues">
@@ -184,7 +199,6 @@
         <item>2</item>
         <item>3</item>
         <item>4</item>
-        <item>5</item>
     </integer-array>
 
     <string-array name="render3dModes">

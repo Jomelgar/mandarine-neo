@@ -1408,6 +1408,17 @@ class SettingsFragmentPresenter(private val fragmentView: SettingsFragmentView) 
         settingsActivity.setToolbarTitle(settingsActivity.getString(R.string.preferences_audio))
         sl.apply {
             add(
+                SingleChoiceSetting(
+                    IntSetting.AUDIO_OUTPUT_TYPE,
+                    R.string.audio_output_type,
+                    R.string.audio_output_type_description,
+                    R.array.audioOutputTypeNames,
+                    R.array.audioOutputTypeValues,
+                    IntSetting.AUDIO_OUTPUT_TYPE.key,
+                    IntSetting.AUDIO_OUTPUT_TYPE.defaultValue
+                )
+            )
+            add(
                 SliderSetting(
                     ScaledFloatSetting.AUDIO_VOLUME,
                     R.string.audio_volume,
